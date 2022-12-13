@@ -5,6 +5,7 @@ import React, {Component} from 'react';
 import DOMHelper from '../../helpers/dom-helper';
 import EditorText from '../editor-text/';
 import UIkit from 'uikit'
+import Spinner from '../spinner/spinner';
 
 
 
@@ -14,9 +15,12 @@ export default class Editor extends Component {
         this.currentPage = 'index.html'
         this.state = {
             pageList: [],
-            newPageName: ''
+            newPageName: '',
+            loading: true
         }
         this.createNewPage = this.createNewPage.bind(this);
+        this.isLoading = this.isLoading.bind(this);
+        this.isLoaded = this.isLoaded.bind(this);
     }
 
 
@@ -27,12 +31,12 @@ export default class Editor extends Component {
 
     init(page) {
         this.iframe = document.querySelector('iframe');
-        this.open(page);
+        this.open(page, this.isLoaded);
         this.loadPageList();
     }
 
 
-    open(page){
+    open(page, cb){
         this.currentPage = page;
         axios
             .get(`../${page}?rnd=${Math.random()}`)
@@ -47,16 +51,20 @@ export default class Editor extends Component {
             .then(()=> this.iframe.load('../temp.html'))
             .then(()=> this.enableEditing())   
             .then(()=>this.injectStyles())  
+            .then(cb)
     }
 
 
-    save(cb){
+    save(onSuccess, onError){
+        this.isLoading();
         const newDom = this.virtualDom.cloneNode(this.virtualDom);
         DOMHelper.unwrapTextNodes(newDom);
         const html = DOMHelper.serializeDOMtoString(newDom);
         axios
             .post('./api/savePage.php', {pageName: this.currentPage, html})
-            .then(cb)
+            .then(onSuccess)
+            .catch(onError)
+            .finally(this.isLoaded)
 
     }
 
@@ -118,10 +126,25 @@ export default class Editor extends Component {
             .catch(()=> alert(' Страница уже существует! '))
     }
 
+    isLoading() {
+        this.setState({
+            loading: true
+        })
+    }
+
+    isLoaded() {
+        this.setState({
+            loading:false
+        })
+    }
+
     alerF(){
         if (confirm('Вы правда хотите сохранить изменения?') == true){
             this.save(()=>{
                 alert('Успешно сохранено!')
+            }, 
+            ()=>{
+                alert('Что то пошло не так! Попробуйте еще раз.')
             });
             
         }
@@ -130,21 +153,26 @@ export default class Editor extends Component {
 
     render(){
         const modal = true;
+        const {loading} = this.state;
+        let spinner;
+
+        loading ? spinner = <Spinner active/> : spinner = <Spinner/>
 
         return(
             <>
             <iframe src={this.currentPage} frameBorder="0"></iframe>
+            {spinner}
             <div className="panel">
                 <button 
                             className="uk-button uk-button-primary" 
                             type="button" 
                             onClick={()=>this.alerF()}
                             >Опубликовать</button>
-                <button 
+                {/* <button 
                             className="uk-button uk-button-primary" 
                             type="button" 
                             // onClick={()}
-                            >Опубликовать</button>
+                            >Опубликовать</button> */}
             </div>
             </>
         )
